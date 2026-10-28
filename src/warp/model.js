@@ -160,21 +160,30 @@ export function parseChargeMode(data) {
 }
 
 /**
- * The current the charger would give without the button slot (mA): the
- * lowest of the other active slots that allow a charge (a slot at 0 blocks:
- * the charge waits for it, it sets no current). Undefined when unknown.
+ * The current the charger may give once started (mA): the lowest of the
+ * slots that hold a setting (the cables 0 and 1, the global current 5, the
+ * external control 8 when active). The dynamic slots (charge manager,
+ * Modbus, OCPP, automation...) may rise by themselves: never counted on.
+ * Undefined when one of them cannot be read.
  */
-export function capWithoutButton(slots) {
+export function capFixed(slots) {
   let cap;
-  for (const [index, slot] of slots.entries()) {
-    if (index === SLOT.BUTTON) continue;
-    if (slot === undefined) return undefined;
+  for (const index of [SLOT.INCOMING_CABLE, SLOT.OUTGOING_CABLE, SLOT.GLOBAL, SLOT.EXTERNAL]) {
+    const slot = slots[index];
+    if (slot === undefined) {
+      if (index === SLOT.EXTERNAL && slots.length <= SLOT.EXTERNAL) continue;
+      return undefined;
+    }
     if (slot.active && slot.maxMa > 0) {
       cap = cap === undefined ? slot.maxMa : Math.min(cap, slot.maxMa);
     }
   }
   return cap;
 }
+
+/** Whether the cable slots (0 and 1) were readable (their limit bounds the current). */
+export const cablesKnown = (slots) =>
+  slots?.[SLOT.INCOMING_CABLE] !== undefined && slots?.[SLOT.OUTGOING_CABLE] !== undefined;
 
 /** The hardware limit (whole A): the cable slots (0 incoming, 1 outgoing) when active. */
 export function hardwareMax(slots) {

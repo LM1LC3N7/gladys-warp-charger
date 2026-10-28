@@ -74,6 +74,29 @@ test('no switch, no writable binary; the writable features are the commands', ()
   }
 });
 
+/** The category/unit pairs of DEVICE_FEATURE_UNITS_BY_CATEGORY used here, frozen (the core may be absent). */
+const PAIRS = [
+  ['energy-sensor', 'watt'],
+  ['energy-sensor', 'kilowatt-hour'],
+  ['electrical-vehicle-charge', 'ampere'],
+  ['electrical-vehicle-charge', 'kilowatt-hour'],
+];
+
+test('units: only the frozen pairs (checked against the core when its clone is there)', () => {
+  for (const f of device.features) {
+    if (f.unit === undefined) continue;
+    assert.ok(
+      PAIRS.some(([c, u]) => c === f.category && u === f.unit),
+      `${f.name}: ${f.category} ${f.unit}`,
+    );
+  }
+  if (core) {
+    for (const [c, u] of PAIRS) {
+      assert.ok(core.DEVICE_FEATURE_UNITS_BY_CATEGORY[c]?.includes(u), `${c} ${u}`);
+    }
+  }
+});
+
 test('units: only those the core lists for the category', { skip: !core }, () => {
   const byCategory = core.DEVICE_FEATURE_UNITS_BY_CATEGORY;
   for (const f of device.features) {

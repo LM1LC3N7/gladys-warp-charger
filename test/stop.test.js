@@ -140,9 +140,10 @@ test('a stop not applied: sent again 3 times, then held (status), never let go b
   assert.equal(t.dev.count('PUT', STOP), 4, 'held: no more writes');
   assert.ok(t.app.stopGuard, 'never let go by time');
   assert.ok(store.data.stop);
-  // A new click sends it again.
+  // A new click sends it again, and gives back 3 resends.
   await t.press(F.STOP);
-  assert.equal(t.dev.count('PUT', STOP), 5);
+  await t.advance(2 * MINUTE, 200);
+  assert.equal(t.dev.count('PUT', STOP), 8, 'the click and 3 more resends');
   // The vehicle leaves: nothing to stop any more.
   t.dev.iec = 0;
   await t.advance(31 * SECOND, 200);

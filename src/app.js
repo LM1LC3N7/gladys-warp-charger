@@ -94,7 +94,8 @@ import { fileStore, normalizeMemory } from './store.js';
 import { WarpClient, errorReason } from './warp/client.js';
 import { ChargerError, ERROR_KINDS } from './warp/http.js';
 import {
-  capWithoutButton,
+  cablesKnown,
+  capFixed,
   meterValue,
   parseChargeMode,
   parseCurrent,
@@ -236,10 +237,49 @@ export class WarpApp {
     return this.wallStart + (this.monotonic() - this.monoStart);
   }
 
-  sleep(ms) {
+  /** Waits `ms`; ends at once when `signal` aborts (a stop takes the line). */
+  sleep(ms, signal) {
     return new Promise((resolve) => {
-      this.timers.setTimeout(resolve, Math.max(0, ms));
+      if (signal?.aborted) {
+        resolve();
+        return;
+      }
+      const done = () => {
+        this.timers.clearTimeout(timer);
+        signal?.removeEventListener('abort', done);
+        resolve();
+      };
+      const timer = this.timers.setTimeout(done, Math.max(0, ms));
+      signal?.addEventListener('abort', done, { once: true });
     });
+  }
+
+  /**
+   * `promise` raced against `ms` and `signal`: `{ done: true, value }`, or
+   * `{ done: false }` when the time ran out or the line was taken. Never an
+   * unbounded wait while the line is held (a hung disk never holds a stop back).
+   */
+  async bounded(promise, ms, signal) {
+    let timer;
+    let onAbort;
+    const late = new Promise((resolve) => {
+      timer = this.timers.setTimeout(() => resolve({ done: false }), Math.max(0, ms));
+      onAbort = () => resolve({ done: false });
+      if (signal?.aborted) onAbort();
+      signal?.addEventListener('abort', onAbort, { once: true });
+    });
+    try {
+      return await Promise.race([
+        promise.then(
+          (value) => ({ done: true, value }),
+          () => ({ done: true, value: undefined }),
+        ),
+        late,
+      ]);
+    } finally {
+      this.timers.clearTimeout(timer);
+      signal?.removeEventListener('abort', onAbort);
+    }
   }
 
   // --- /data -------------------------------------------------------------------
@@ -322,8 +362,18 @@ export class WarpApp {
       return;
     }
     const target = { host: kept.host, port: kept.port };
-    this.stopGuard = this.newStopGuard(target);
-    this.stopGuard.since = kept.since;
+    const guard = this.newStopGuard(target);
+    guard.since = kept.since;
+    // What /data says of it: written before, and the resends the charger accepted.
+    guard.written = kept.written;
+    guard.resends = kept.resends;
+    this.stopGuard = guard;
+    if (guard.written && guard.resends >= TIMINGS.stopResends) {
+      // Held (sent 4 times without effect): checked only, never sent again by a restart.
+      this.logger.warn('WARP: a stop held in /data is checked again');
+      this.armStopCheck(0);
+      return;
+    }
     this.logger.warn('WARP: a stop kept in /data is sent again');
     this.queueStop({ target, received: this.mono(), fromBoot: true });
   }
@@ -1361,6 +1411,10 @@ export class WarpApp {
 
   /** Reads the charger now if the interval allows it, else the last status (never sooner). */
   async testConnection() {
+    if (this.stopGuard) {
+      // A stop kept (not sent, refused, not applied): checked and sent first, now.
+      this.armStopCheck(0);
+    }
     if (!this.config.address || this.config.badAuth || this.paused || this.blocked) {
       return this.status()[1];
     }
@@ -1507,10 +1561,11 @@ export class WarpApp {
       if (state.iec === 4 || state.charger === 'error' || (state.error ?? 1) !== 0) {
         throw this.refusal(ERRORS.fault);
       }
-      // Never above the ceiling: the current the charger would give without the button.
-      const cap = capWithoutButton(slots);
+      // Never above the ceiling: the current the charger may give once started
+      // (its settings, never a dynamic slot that may rise by itself).
+      const cap = capFixed(slots);
       const { high } = currentBounds(slots, this.config.maxCurrent);
-      if (cap === undefined) {
+      if (cap === undefined || !cablesKnown(slots)) {
         throw this.refusal(ERRORS.missing);
       }
       if (cap > high * 1000) {
@@ -1526,6 +1581,9 @@ export class WarpApp {
         expect: (back) => back[SLOT.BUTTON]?.maxMa === BUTTON_RELEASED_MA,
         before: (back) => back[SLOT.BUTTON]?.maxMa === button.maxMa,
       };
+    }
+    if (!cablesKnown(slots)) {
+      throw this.refusal(ERRORS.missing);
     }
     const { low, high } = currentBounds(slots, this.config.maxCurrent);
     if (wanted < low || wanted > high) {
@@ -1592,7 +1650,8 @@ export class WarpApp {
       fresh = await this.freshRead(role, holder, sendBy - TIMINGS.commandMinRequest);
     } catch (err) {
       if (err.kind === ERROR_KINDS.RATE_LIMITED) {
-        await this.pause(err, '429');
+        // The pause starts now; its save to /data is never awaited under the line.
+        this.pause(err, '429').catch(() => {});
       }
       if (err.kind === ERROR_KINDS.ABORTED && entry.seq !== this.protectSeq) {
         throw this.refusal(ERRORS.stopMeanwhile);
@@ -1621,11 +1680,21 @@ export class WarpApp {
         throw this.refusal(ERRORS.tooOften(age(TIMINGS.flashMinInterval - since)));
       }
       // In /data before the first byte: a restart never writes the flash sooner.
+      // The save runs against the send deadline and the stop: never an
+      // unbounded wait under the line.
       const previous = this.memory.flashAt;
       this.memory.flashAt = this.now();
-      if (!(await this.saveMemory())) {
+      const saved = await this.bounded(
+        this.saveMemory(),
+        sendBy - TIMINGS.commandMinRequest - this.mono(),
+        holder.signal,
+      );
+      if (!saved.done || !saved.value) {
         this.memory.flashAt = previous;
-        throw this.refusal(ERRORS.notSaved);
+        if (entry.seq !== this.protectSeq) {
+          throw this.refusal(ERRORS.stopMeanwhile);
+        }
+        throw this.refusal(saved.done ? ERRORS.notSaved : ERRORS.notSavedInTime);
       }
       this.flashAt = this.mono();
     }
@@ -1651,18 +1720,19 @@ export class WarpApp {
           if (role === FEATURES.START) {
             this.lastStartAt = this.lastSentAt;
           }
-          if (role === FEATURES.START && this.stopGuard) {
-            // A newer start clicked with the option: the stop before it is let go.
-            this.dropStopGuard('newer start');
-          }
         },
       });
     } catch (err) {
       return this.commandFailed(err, entry, role);
     }
+    if (role === FEATURES.START && this.stopGuard) {
+      // A newer start clicked with the option and accepted (2xx): the stop before it is let go.
+      this.dropStopGuard('newer start');
+    }
     // The read back alone confirms it.
     await this.sleep(
       Math.min(TIMINGS.applyWait, answerBy - TIMINGS.commandMinRequest - this.mono()),
+      holder.signal,
     );
     let back;
     try {
@@ -1788,8 +1858,9 @@ export class WarpApp {
   async protect(received) {
     // Every command that arrived before this stop and has not left gives way.
     this.protectSeq += 1;
-    // /data holds the address of the last read: known even before the configuration.
-    await this.loadMemory();
+    // /data holds the address of the last read: known even before the
+    // configuration (a hung disk never holds the stop back: 200 ms at most).
+    await this.bounded(this.loadMemory(), TIMINGS.stopSaveWait);
     const target = this.stopTarget();
     if (!target) {
       throw this.refusal(ERRORS.noAddress);
@@ -1922,6 +1993,9 @@ export class WarpApp {
       guard.since = this.now();
       guard.resends = 0;
     }
+    // A start that left less than 90 s before this click may still land: watched,
+    // even when no byte of this stop leaves (the charge read stopped meanwhile).
+    guard.watchUntil = Math.max(guard.watchUntil, this.lastStartAt + TIMINGS.pendingFor);
     // In /data before the first byte, so a restart sends it again; a save that
     // fails or hangs never holds the stop back (200 ms at most).
     let saveTimer;
@@ -1934,6 +2008,8 @@ export class WarpApp {
     this.timers.clearTimeout(saveTimer);
     let back;
     let failure;
+    // A restart sending a stop already written before: a resend once the charger accepts it.
+    const resendOnBoot = job.fromBoot && guard.written;
     this.logger.info('WARP: stop');
     for (;;) {
       const holder = await this.lane.acquire('stop');
@@ -1956,6 +2032,9 @@ export class WarpApp {
           },
         });
         failure = undefined;
+        if (resendOnBoot && this.stopGuard === guard) {
+          guard.resends += 1;
+        }
         // Read back once the controller had time to apply it (within the ack budget).
         await this.sleep(
           Math.min(TIMINGS.applyWait, job.received + TIMINGS.commandAnswerBy - 600 - this.mono()),
@@ -2064,58 +2143,61 @@ export class WarpApp {
     const auth = this.authFor(target);
     let holder;
     try {
-      holder = await this.lane.acquire('check');
-      if (this.checkMustYield() || this.stopGuard !== guard) {
-        decision = 'yield';
-        return;
-      }
-      const startedAt = this.mono();
-      let read;
-      try {
-        read = await this.readStopState(target, auth, holder, this.mono() + TIMINGS.readTimeout);
-      } catch (err) {
-        if (err.kind === ERROR_KINDS.ABORTED) throw err;
-        // Nothing readable: sent again, in doubt (the write is the stop).
-        read = undefined;
-      }
-      if (this.stopGuard !== guard) return;
-      decision = this.decideStop(guard, read, startedAt);
-      if (decision !== 'resend') return;
-      const wasWritten = guard.written;
-      await this.client.put(target, auth, TOPICS.stop, null, {
-        timeoutMs: TIMINGS.readTimeout,
-        signal: holder.signal,
-        beforeSend: () => {
-          if (this.checkMustYield() || this.stopGuard !== guard) {
-            throw new Error('a newer click or command');
-          }
-          this.logger.warn('WARP: the charge is still allowed after a stop: stop sent again');
-          written = true;
-          guard.written = true;
-          guard.sentAt = this.mono();
-          guard.watchUntil = Math.max(guard.watchUntil, this.lastStartAt + TIMINGS.pendingFor);
-          this.lastSentAt = guard.sentAt;
-        },
-      });
-      // Accepted by the charger: a resend (a refusal, a 401 or a silence is not one).
-      if (wasWritten) {
-        guard.resends += 1;
-      }
-      // Read back once the controller had time to apply it.
-      await this.sleep(TIMINGS.applyWait);
-      if (this.stopGuard !== guard) return;
-      try {
-        const back = await this.readStopState(
-          target,
-          auth,
-          holder,
-          this.mono() + TIMINGS.readTimeout,
-        );
-        const after = this.decideStop(guard, back, Infinity);
-        if (after === 'done' || after === 'watch') decision = after;
-      } catch (err) {
-        if (err.kind === ERROR_KINDS.ABORTED) throw err;
-      }
+      // Every exit of the check ends below: let go on 'done', /data, the next check armed.
+      await (async () => {
+        holder = await this.lane.acquire('check');
+        if (this.checkMustYield() || this.stopGuard !== guard) {
+          decision = 'yield';
+          return;
+        }
+        const startedAt = this.mono();
+        let read;
+        try {
+          read = await this.readStopState(target, auth, holder, this.mono() + TIMINGS.readTimeout);
+        } catch (err) {
+          if (err.kind === ERROR_KINDS.ABORTED) throw err;
+          // Nothing readable: sent again, in doubt (the write is the stop).
+          read = undefined;
+        }
+        if (this.stopGuard !== guard) return;
+        decision = this.decideStop(guard, read, startedAt);
+        if (decision !== 'resend') return;
+        const wasWritten = guard.written;
+        await this.client.put(target, auth, TOPICS.stop, null, {
+          timeoutMs: TIMINGS.readTimeout,
+          signal: holder.signal,
+          beforeSend: () => {
+            if (this.checkMustYield() || this.stopGuard !== guard) {
+              throw new Error('a newer click or command');
+            }
+            this.logger.warn('WARP: the charge is still allowed after a stop: stop sent again');
+            written = true;
+            guard.written = true;
+            guard.sentAt = this.mono();
+            guard.watchUntil = Math.max(guard.watchUntil, this.lastStartAt + TIMINGS.pendingFor);
+            this.lastSentAt = guard.sentAt;
+          },
+        });
+        // Accepted by the charger: a resend (a refusal, a 401 or a silence is not one).
+        if (wasWritten) {
+          guard.resends += 1;
+        }
+        // Read back once the controller had time to apply it.
+        await this.sleep(TIMINGS.applyWait, holder.signal);
+        if (this.stopGuard !== guard) return;
+        try {
+          const back = await this.readStopState(
+            target,
+            auth,
+            holder,
+            this.mono() + TIMINGS.readTimeout,
+          );
+          const after = this.decideStop(guard, back, Infinity);
+          if (after === 'done' || after === 'watch') decision = after;
+        } catch (err) {
+          if (err.kind === ERROR_KINDS.ABORTED) throw err;
+        }
+      })();
     } catch (err) {
       if (err?.kind !== ERROR_KINDS.YIELDED && err?.kind !== ERROR_KINDS.ABORTED) {
         this.logger.warn(`WARP: check of the stop failed (${errorReason(err)})`);
@@ -2133,10 +2215,15 @@ export class WarpApp {
       this.dropStopGuard('applied');
       return;
     }
-    await this.persistStop();
-    this.armStopCheck(
-      decision === 'yield' ? SECOND : decision === 'watch' ? this.watchDelay(guard) : undefined,
-    );
+    // Armed before /data is written (a hung disk never stops the checks).
+    let delay;
+    if (decision === 'yield') delay = SECOND;
+    else if (decision === 'watch') delay = this.watchDelay(guard);
+    else if (decision === 'wait' && guard.sentAt !== undefined) {
+      delay = Math.max(0, guard.sentAt + TIMINGS.stopApplyDelay - this.mono());
+    }
+    this.armStopCheck(delay);
+    this.persistStop().catch(() => {});
     this.updateStatus().catch(() => {});
   }
 

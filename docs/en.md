@@ -71,9 +71,14 @@ every 15 s:
 - **credentials refused**: tried again every 15 s, and at once when new
   credentials are saved;
 - **not applied yet** (the charger still allows the charge): sent again 3
-  times at most, then kept without new writes until a new click; the status
-  of the integration says so;
+  times at most (writes the charger accepted), then kept without new writes
+  until a new click, a restart included; the status of the integration says
+  so;
 - **without confirmation** in time (4.3 s): checked the same way.
+
+A stop that never left is never given up: it is tried again every 15 s, and
+at once when new credentials are saved or the **Test the connection** button
+is clicked.
 
 A kept stop is let go when the charger shows the charge blocked, when the
 vehicle is unplugged, or when a newer start clicked in Gladys (option on)
@@ -88,8 +93,12 @@ reads the charger right before (identity, state, current slots), leaves
 within 3.5 s or not at all, and succeeds only when the read back shows the
 value asked ("sent, not applied yet" otherwise, then reads at 5 and 20 s).
 
-- **Start**: refused without a vehicle, on a fault, or when the charger would
-  give a current above the ceiling (set the current first).
+- **Start**: refused without a vehicle, on a fault, or when the settings of
+  the charger (cables, its charging current, external control) allow a
+  current above the ceiling: set the current first. With the factory
+  settings (32 A) and the default ceiling (16 A), the first start is refused
+  until the current is set. A refused start (4xx, 401, 429) never lets a
+  kept stop go.
 - **Current**: from 6 A to the lowest of the ceiling (16 A by default, 32 A
   at most) and the cable limits read from the charger. With external control
   on in the charger, the integration writes its slot

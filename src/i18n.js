@@ -290,6 +290,10 @@ export const ERRORS = {
       `The charging current is kept in the flash of the charger: one increase a minute, next in ${wait.en}. Nothing sent.`,
       `Le courant de charge est gardé dans la mémoire flash de la borne : une hausse par minute, prochaine dans ${wait.fr}. Rien envoyé.`,
     ),
+  notSavedInTime: both(
+    'The time of this write could not be kept in /data in time: nothing sent.',
+    "L'heure de cette écriture n'a pas pu être gardée dans /data à temps : rien envoyé.",
+  ),
   notSaved: both(
     'The time of this write could not be kept in /data: nothing sent.',
     "L'heure de cette écriture n'a pas pu être gardée dans /data : rien envoyé.",

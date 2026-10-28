@@ -9,7 +9,7 @@ import { createHash } from 'node:crypto';
 import { normalizeConfig, parseAddress } from '../src/config.js';
 import { authorization, parseChallenge } from '../src/warp/digest.js';
 import {
-  capWithoutButton,
+  capFixed,
   hardwareMax,
   meterValue,
   parseChargeMode,
@@ -76,9 +76,10 @@ test('evse/slots: 0 or 6 to 32 A and a boolean, else unknown; too short refused'
   assert.deepEqual(slots[2], undefined);
   assert.deepEqual(slots[4], { maxMa: 0, active: true });
   assert.throws(() => parseSlots([{ max_current: 0, active: true }]));
-  assert.equal(capWithoutButton(slots), undefined, 'a slot unknown: the cap unknown');
-  slots[2] = { maxMa: 32000, active: false };
-  assert.equal(capWithoutButton(slots), 10000);
+  assert.equal(capFixed(slots), 10000, 'cables and global; slot 2 unread is not one of them');
+  slots[1] = undefined;
+  assert.equal(capFixed(slots), undefined, 'a cable unknown: the cap unknown');
+  slots[1] = { maxMa: 16000, active: true };
   assert.equal(hardwareMax(slots), 16);
 });
 

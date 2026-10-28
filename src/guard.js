@@ -28,10 +28,11 @@
 //   an old reference, a value under a held jump that does not fit that short
 //   margin is held in its turn (its kWh shown), never taken.
 //
-// Taken as is from gladys-p1-monitor 0.1.4 (src/guard.js, approved for the
-// billed index); only its constants (src/constants.js) are those of a
-// charger, and the tariff check it also holds is not taken (one counter
-// here). Its times are those of the app's session clock (src/app.js).
+// Taken from gladys-p1-monitor 0.1.4 (src/guard.js, approved for the
+// billed index); its constants (src/constants.js) are those of a charger,
+// the tariff check it also holds is not taken (one counter here), and an
+// acceptance is bounded below in both directions (a drop accepted is the new
+// floor, as gladys-resol; review r1, M1). Its times are those of the app's session clock (src/app.js).
 // -----------------------------------------------------------------------------
 
 import { INDEX_MAX_KW, INDEX_SLACK_KWH } from './constants.js';
@@ -115,9 +116,10 @@ export class IndexGuard {
 
   /** Whether `value` is within the acceptance: the value shown, plus the margin since. */
   withinAccepted(value, at) {
-    const { direction, to, at: since } = this.accepted;
+    const { to, at: since } = this.accepted;
     const top = to + margin(since, at);
-    return direction === 'up' ? value >= to && value <= top : value <= top;
+    // Both ways bounded below too: a drop accepted is the new floor (as gladys-resol).
+    return value >= to && value <= top;
   }
 
   /** Whether `value`, read at `at`, may be published. A published value becomes the reference. */

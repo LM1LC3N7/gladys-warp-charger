@@ -11,6 +11,7 @@ import { createHash } from 'node:crypto';
 import { WarpClient } from '../src/warp/client.js';
 import { ERROR_KINDS, request } from '../src/warp/http.js';
 import { httpServer, reply } from './kit/http.mjs';
+import { createServer } from 'node:net';
 import { blackhole, refusePort } from './kit/net.mjs';
 
 const md5 = (t) => createHash('md5').update(t).digest('hex');
@@ -148,4 +149,34 @@ test('Digest over a real server: answered, the challenge kept; a wrong password 
     (err) => err.kind === ERROR_KINDS.AUTH && err.refused === true,
   );
   assert.ok(!JSON.stringify(srv.requests).includes('right'));
+});
+
+test('a declared length over the limit is refused at once, before the body', async (t) => {
+  const sockets = new Set();
+  const server = createServer((socket) => {
+    sockets.add(socket);
+    socket.on('error', () => {});
+    socket.write(
+      'HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: 1000000\r\n\r\n{',
+    );
+  });
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
+  t.after(
+    () =>
+      new Promise((r) => {
+        for (const socket of sockets) socket.destroy();
+        server.close(r);
+      }),
+  );
+  const started = Date.now();
+  await assert.rejects(
+    request({
+      host: '127.0.0.1',
+      port: server.address().port,
+      path: '/evse/state',
+      timeoutMs: 3000,
+    }),
+    { kind: ERROR_KINDS.PROTOCOL },
+  );
+  assert.ok(Date.now() - started < 1000);
 });

@@ -73,9 +73,14 @@ véhicule). Sinon la réponse dit pourquoi, et l'arrêt est gardé (dans
 - **identifiants refusés** : réessayé toutes les 15 s, et tout de suite après
   l'enregistrement de nouveaux identifiants ;
 - **pas encore appliqué** (la borne autorise encore la charge) : renvoyé au
-  plus 3 fois, puis gardé sans nouvel envoi jusqu'à un nouveau clic ; l'état
-  de l'intégration le signale ;
+  plus 3 fois (écritures acceptées par la borne), puis gardé sans nouvel
+  envoi jusqu'à un nouveau clic, redémarrage compris ; l'état de
+  l'intégration le signale ;
 - **sans confirmation** à temps (4,3 s) : vérifié de la même façon.
+
+Un arrêt qui n'est jamais parti n'est jamais abandonné : réessayé toutes les
+15 s, et tout de suite à l'enregistrement de nouveaux identifiants ou au clic
+sur **Tester la connexion**.
 
 L'arrêt gardé est levé quand la borne montre la charge bloquée, quand le
 véhicule est débranché, ou quand un démarrage plus récent cliqué dans Gladys
@@ -91,8 +96,11 @@ de courant), part dans les 3,5 s ou pas du tout, et n'est réussie que si la
 relecture montre la valeur demandée (« envoyée, pas encore appliquée »
 sinon, puis relectures à 5 et 20 s).
 
-- **Démarrer** : refusé sans véhicule, sur un défaut, ou si la borne
-  donnerait un courant au-dessus du plafond (réglez d'abord le courant).
+- **Démarrer** : refusé sans véhicule, sur un défaut, ou si les réglages de
+  la borne (câbles, son courant de charge, commande externe) permettent un
+  courant au-dessus du plafond : réglez d'abord le courant. Avec les réglages
+  d'usine (32 A) et le plafond par défaut (16 A), le premier démarrage est
+  refusé tant que le courant n'est pas réglé. Un démarrage refusé (4xx, 401, 429) ne lève jamais un arrêt gardé.
 - **Courant** : de 6 A au plus bas du plafond (16 A par défaut, 32 A au plus)
   et des limites des câbles lues sur la borne. Avec la commande externe
   activée sur la borne, l'intégration écrit son emplacement

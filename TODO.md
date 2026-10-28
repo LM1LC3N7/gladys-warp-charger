@@ -49,6 +49,35 @@ up to date at the end of every milestone.
 
 ## Decisions
 
+- **Review r1 (2026-10-28)**:
+  - B1: a command never waits without a bound while it holds the line: the
+    save of `flashAt` runs against the send deadline and the stop (late:
+    "nothing sent"), the 429 pause is saved without being awaited, the wait
+    after a write ends when a stop takes the line; `protect()` waits 200 ms
+    at most for /data.
+  - B2: every exit of the check of the stop ends in one place: let go on
+    'done', the next check armed (1 s on 'yield', the end of the watch on
+    'watch', `sentAt + 2 s` on 'wait', 15 s else) before /data is written.
+  - I1: a restart keeps `written` and `resends` of /data; a stop held (written,
+    3 resends) is only checked, never sent by a restart; a boot send of a stop
+    written before counts as a resend. A stop never written is always sent.
+  - I2: tests for the 200 ms wait, the 429 retry, the answer by 4.3 s, the
+    resends given back by a new click.
+  - M1: an acceptance is bounded below both ways (a drop accepted is the
+    floor; the guard is no longer p1-monitor's as is, said in its header).
+  - M2: a start lets a kept stop go only on its 2xx.
+  - M3: the start ceiling is checked on the fixed slots (cables 0 and 1,
+    global 5, external 8): a dynamic slot low now never lets a start through.
+  - M4: the unit pairs frozen in the test (runs under Node 22 too). M5: a
+    cable slot that cannot be read refuses start and current.
+  - Also: a kept stop is checked at once by the test button (a stop that never
+    left is never given up), and watched for a start sent less than 90 s
+    before the click even when the click writes nothing.
+  - Reviewer mutants left: "never written counts as written" and "no watch
+    on a check resend" are equivalent now (a restart always sends a stop
+    never written; the watch is set at the click); s4 "start allowed with the
+    charge manager at 6 A" is refused on purpose (M3).
+
 - **Version 0.1.0 set by hand** in `package.json`, `package-lock.json`, the
   manifest and the `docker_image` tag
   (`ghcr.io/lm1lc3n7/gladys-warp-charger:0.1.0`): the first Release (patch)
