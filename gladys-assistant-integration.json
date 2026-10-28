@@ -1,177 +1,150 @@
 {
   "manifest_version": 1,
   "type": "device",
-  "name": "Demo Devices Template",
+  "name": "WARP Charger",
   "description": {
-    "en": "Starter template showing sensors, a switch, a dimmable light and a smart plug.",
-    "fr": "Template de démarrage : capteurs, interrupteur, lampe variable et prise connectée."
+    "en": "Tinkerforge WARP chargers over the local HTTP API: state, power, energy; optional start, current.",
+    "fr": "Bornes Tinkerforge WARP en HTTP local : état, puissance, énergie ; démarrage et courant en option."
   },
-  "version": "1.0.0",
-  "docker_image": "ghcr.io/gladysassistant/integration-template-js:1.0.0",
+  "version": "0.1.0",
+  "docker_image": "ghcr.io/lm1lc3n7/gladys-warp-charger:0.1.0",
   "gladys_version": ">=5.1.0",
-  "cover_image": "https://raw.githubusercontent.com/GladysAssistant/integration-template-js/master/cover.png",
-  "categories": ["lighting", "security", "environment"],
-  "transports": ["local", "cloud"],
+  "cover_image": "https://raw.githubusercontent.com/LM1LC3N7/gladys-warp-charger/main/cover.png",
+  "categories": ["vehicles", "energy"],
+  "transports": ["local"],
   "config_schema": [
     {
       "key": "intro",
       "type": "section",
-      "label": { "en": "Getting started", "fr": "Pour commencer" },
+      "label": { "en": "Your WARP charger", "fr": "Votre borne WARP" },
       "description": {
-        "en": "The demo weather station reads real data from the free Open-Meteo API: pick the coordinates to observe. No account, no API key.",
-        "fr": "La station météo de démonstration lit de vraies données via l'API gratuite Open-Meteo : choisissez les coordonnées à observer. Pas de compte, pas de clé d'API."
+        "en": "Shows your Tinkerforge WARP charger (WARP1 to WARP4, firmware 2.x) in Gladys through its local HTTP API, without any cloud: state, vehicle plugged in, power, current allowed, energy of the session, energy index, charge mode. Enter the IP address of the charger (give it a fixed address in your router), and a user name and password of its web interface if you set users on it, save, then add it from the Discovery tab. The stop button always works; starting and the charging current can be changed from Gladys only if you allow the commands below. Never tested with a real charger. Not affiliated with Tinkerforge.",
+        "fr": "Affiche votre borne Tinkerforge WARP (WARP1 à WARP4, firmware 2.x) dans Gladys par son API HTTP locale, sans cloud : état, véhicule branché, puissance, courant autorisé, énergie de la session, index d'énergie, mode de charge. Saisissez l'adresse IP de la borne (donnez-lui une adresse fixe dans votre box), et un nom d'utilisateur et un mot de passe de son interface web si vous y avez créé des utilisateurs, enregistrez, puis ajoutez-la depuis l'onglet Découverte. Le bouton d'arrêt fonctionne toujours ; le démarrage et le courant de charge ne se changent depuis Gladys que si vous autorisez les commandes ci-dessous. Jamais testé avec une vraie borne. Sans lien avec Tinkerforge."
       },
       "links": [
         {
-          "url": "https://open-meteo.com/en/docs",
-          "label": { "en": "Open-Meteo documentation", "fr": "Documentation Open-Meteo" }
+          "url": "https://github.com/LM1LC3N7/gladys-warp-charger/blob/main/docs/fr.md",
+          "label": { "en": "Guide (French)", "fr": "Guide (français)" }
+        },
+        {
+          "url": "https://github.com/LM1LC3N7/gladys-warp-charger/blob/main/docs/en.md",
+          "label": { "en": "Guide (English)", "fr": "Guide (anglais)" }
         }
       ]
     },
     {
-      "key": "latitude",
-      "type": "number",
-      "label": { "en": "Latitude", "fr": "Latitude" },
+      "key": "host",
+      "type": "string",
+      "label": { "en": "IP address of the charger", "fr": "Adresse IP de la borne" },
       "description": {
-        "en": "Latitude used for the demo weather sensor.",
-        "fr": "Latitude utilisée par le capteur météo de démonstration."
+        "en": "An IPv4 address or a host name (warp3-xxxx.local), optionally followed by a port (80 by default). HTTP only: HTTPS is not supported in this version.",
+        "fr": "Une adresse IPv4 ou un nom d'hôte (warp3-xxxx.local), éventuellement suivi d'un port (80 par défaut). HTTP seulement : HTTPS n'est pas pris en charge dans cette version."
       },
-      "placeholder": { "en": "e.g. 48.8566", "fr": "ex. 48.8566" },
+      "placeholder": { "en": "192.168.1.70", "fr": "192.168.1.70" },
       "required": true,
-      "default": 48.8566,
-      "min": -90,
-      "max": 90
+      "default": ""
     },
     {
-      "key": "longitude",
-      "type": "number",
-      "label": { "en": "Longitude", "fr": "Longitude" },
-      "description": {
-        "en": "Longitude used for the demo weather sensor.",
-        "fr": "Longitude utilisée par le capteur météo de démonstration."
+      "key": "username",
+      "type": "string",
+      "label": {
+        "en": "User name of the web interface",
+        "fr": "Nom d'utilisateur de l'interface web"
       },
-      "placeholder": { "en": "e.g. 2.3522", "fr": "ex. 2.3522" },
-      "required": true,
-      "default": 2.3522,
-      "min": -180,
-      "max": 180
-    },
-    {
-      "key": "unit",
-      "type": "select",
-      "label": { "en": "Temperature unit", "fr": "Unité de température" },
+      "description": {
+        "en": "Only if users are set on the charger (Users page): one of them. Leave empty otherwise. Never in the address field.",
+        "fr": "Seulement si des utilisateurs sont créés sur la borne (page Utilisateurs) : l'un d'eux. Laissez vide sinon. Jamais dans le champ de l'adresse."
+      },
       "required": false,
-      "default": "celsius",
-      "options": [
-        { "value": "celsius", "label": { "en": "Celsius", "fr": "Celsius" } },
-        { "value": "fahrenheit", "label": { "en": "Fahrenheit", "fr": "Fahrenheit" } }
-      ]
+      "default": ""
     },
     {
-      "key": "poll_frequency",
+      "key": "password",
+      "type": "secret",
+      "label": { "en": "Password of the web interface", "fr": "Mot de passe de l'interface web" },
+      "description": {
+        "en": "With the user name above. Kept by Gladys in its database, never shown again, sent only to the charger, as a Digest answer (the password itself never travels). Refused credentials are tried again after 15 min, 1 h, then every 6 h.",
+        "fr": "Avec le nom d'utilisateur ci-dessus. Gardé par Gladys dans sa base, jamais réaffiché, envoyé seulement à la borne, sous forme de réponse Digest (le mot de passe lui-même ne circule pas). Des identifiants refusés sont réessayés après 15 min, 1 h, puis toutes les 6 h."
+      },
+      "required": false
+    },
+    {
+      "key": "allow_commands",
+      "type": "boolean",
+      "label": { "en": "Allow the commands", "fr": "Autoriser les commandes" },
+      "description": {
+        "en": "Off by default. On: Gladys may start the charge (button) and set the charging current (list, 6 A to the ceiling below). Off: these two features refuse every command. The stop button works either way.",
+        "fr": "Désactivé par défaut. Activé : Gladys peut démarrer la charge (bouton) et régler le courant de charge (liste, de 6 A au plafond ci-dessous). Désactivé : ces deux fonctionnalités refusent toute commande. Le bouton d'arrêt fonctionne dans les deux cas."
+      },
+      "required": false,
+      "default": false
+    },
+    {
+      "key": "max_current",
+      "type": "number",
+      "label": {
+        "en": "Ceiling of the charging current (A)",
+        "fr": "Plafond du courant de charge (A)"
+      },
+      "description": {
+        "en": "The highest current Gladys may set, and a start is refused while the charger would give more: the lower of this value (16 A by default) and the cable limits read from the charger.",
+        "fr": "Le courant le plus élevé que Gladys peut régler, et un démarrage est refusé tant que la borne donnerait davantage : le plus bas de cette valeur (16 A par défaut) et des limites des câbles lues sur la borne."
+      },
+      "required": false,
+      "default": 16,
+      "min": 6,
+      "max": 32
+    },
+    {
+      "key": "poll_interval",
       "type": "number",
       "label": { "en": "Refresh interval (s)", "fr": "Intervalle de rafraîchissement (s)" },
       "description": {
-        "en": "How often sensors are polled, in seconds (one minute minimum).",
-        "fr": "Fréquence d'interrogation des capteurs, en secondes (une minute minimum)."
+        "en": "How often the charger is read, in seconds.",
+        "fr": "Fréquence de lecture de la borne, en secondes."
       },
       "required": false,
-      "default": 300,
-      "min": 60,
-      "max": 3600
+      "default": 30,
+      "min": 10,
+      "max": 600
+    },
+    {
+      "key": "language",
+      "type": "select",
+      "label": {
+        "en": "Language of the feature names",
+        "fr": "Langue des noms des fonctionnalités"
+      },
+      "description": {
+        "en": "Used for the feature names of the devices added from now on, for the status texts and for the command errors.",
+        "fr": "Sert aux noms des fonctionnalités des appareils ajoutés désormais, aux textes d'état et aux erreurs des commandes."
+      },
+      "required": false,
+      "default": "fr",
+      "options": [
+        { "value": "fr", "label": { "en": "French", "fr": "Français" } },
+        { "value": "en", "label": { "en": "English", "fr": "Anglais" } }
+      ]
     }
   ],
   "actions": [
     {
-      "key": "test_weather",
-      "label": { "en": "Test the weather provider", "fr": "Tester le fournisseur météo" },
+      "key": "test_connection",
+      "label": { "en": "Test the connection", "fr": "Tester la connexion" },
+      "description": {
+        "en": "Reads the charger once (never sooner than the refresh interval) and shows its state.",
+        "fr": "Lit la borne une fois (jamais avant l'intervalle de rafraîchissement) et affiche son état."
+      },
       "timeout_seconds": 30
     },
     {
-      "key": "identify",
-      "label": { "en": "Identify a device", "fr": "Identifier un appareil" },
-      "fields": [
-        {
-          "key": "device",
-          "type": "select",
-          "source": "devices",
-          "label": { "en": "Device", "fr": "Appareil" },
-          "required": true
-        }
-      ]
-    }
-  ],
-  "scene_triggers": [
-    {
-      "key": "motion_detected",
-      "label": { "en": "Motion detected", "fr": "Mouvement détecté" },
+      "key": "accept_held_index",
+      "label": { "en": "Accept the held index", "fr": "Accepter l'index retenu" },
       "description": {
-        "en": "A demo motion sensor saw a person or an animal move.",
-        "fr": "Un détecteur de démonstration a vu bouger une personne ou un animal."
+        "en": "A jump or a drop of the energy index (meter reset or replaced) is held back, never counted alone. First click: shows it. Second click 3 s to 5 min later: takes exactly that value.",
+        "fr": "Un saut ou une baisse de l'index d'énergie (compteur remis à zéro ou remplacé) est retenu, jamais compté seul. Premier clic : l'affiche. Second clic 3 s à 5 min après : prend exactement cette valeur."
       },
-      "fields": [
-        {
-          "key": "device",
-          "type": "select",
-          "source": "devices",
-          "label": { "en": "Sensor", "fr": "Détecteur" }
-        },
-        {
-          "key": "target",
-          "type": "multi_select",
-          "label": { "en": "What moved", "fr": "Ce qui a bougé" },
-          "options": [
-            { "value": "person", "label": { "en": "Person", "fr": "Personne" } },
-            { "value": "animal", "label": { "en": "Animal", "fr": "Animal" } }
-          ]
-        }
-      ],
-      "variables": [
-        {
-          "key": "target",
-          "type": "string",
-          "label": { "en": "What moved", "fr": "Ce qui a bougé" }
-        }
-      ]
-    }
-  ],
-  "scene_actions": [
-    {
-      "key": "identify_device",
-      "label": { "en": "Identify a device", "fr": "Identifier un appareil" },
-      "description": {
-        "en": "Make a device signal itself (the demo light blinks).",
-        "fr": "Fait se signaler un appareil (la lampe de démonstration clignote)."
-      },
-      "timeout_seconds": 15,
-      "fields": [
-        {
-          "key": "device",
-          "type": "select",
-          "source": "devices",
-          "label": { "en": "Device", "fr": "Appareil" },
-          "required": true
-        }
-      ],
-      "outputs": [
-        {
-          "key": "signalled",
-          "type": "boolean",
-          "label": { "en": "Device signalled", "fr": "Appareil signalé" }
-        }
-      ]
-    }
-  ],
-  "widgets": [
-    {
-      "key": "demo_status",
-      "label": { "en": "Demo status", "fr": "État de la démo" },
-      "description": {
-        "en": "Live temperature and plug power, plug connection and observed location.",
-        "fr": "Température et puissance en direct, connexion de la prise, position observée."
-      },
-      "icon": "activity",
-      "action_timeout_seconds": 15
+      "timeout_seconds": 30
     }
   ]
 }

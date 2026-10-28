@@ -1,61 +1,133 @@
-# Demo Devices Template
+# WARP Charger for Gladys
 
-This is the user documentation of the integration. Gladys re-hosts this file
-and shows a permanent **Documentation** link to it in the Configuration screen
-(in the user's language, with English as the fallback) — it is when
-configuring that the user needs it most. Keep the short onboarding hints in
-the `section` blocks of the manifest `config_schema`; put the long
-step-by-step (screenshots, troubleshooting…) here.
+Shows your **Tinkerforge WARP** charger (WARP1, WARP2, WARP3 or WARP4,
+firmware 2.x) in Gladys through its **local HTTP API**: no cloud, no account,
+straight on your network.
+
+> **Never tested with a real charger.** Not affiliated with Tinkerforge.
+> The integration follows the official documentation of the API
+> (docs.warp-charger.com) and the Home Assistant integration
+> HomeAssistant-Tinkerforge-Warp-Wallbox-Custom-Component. A firmware update
+> may change the API.
 
 ## What you get
 
-Six demo devices show up after installation: a weather station (real data
-from Open-Meteo), a switch, a dimmable light, a smart plug with power
-metering, a motion sensor and a camera.
+One device per charger (keyed by its UID, not by its IP address), with:
 
-## Configuration
+| Feature                  | Content                                                                   |
+| ------------------------ | ------------------------------------------------------------------------- |
+| Status                   | No vehicle, plugged in waiting for release, ready, charging, fault        |
+| Connector                | Available, occupied, faulted or unavailable ("charging station" category) |
+| Charging state           | Charging, paused by the charger, paused by the vehicle, idle              |
+| Vehicle plugged in       | Yes / no                                                                  |
+| Power                    | In W (the charger's meter, "draw minus feed")                             |
+| Current allowed          | In A, the current the charger allows the vehicle                          |
+| Energy of the session    | In kWh, a plain sensor (during a session)                                 |
+| Energy index             | In kWh, the energy drawn since the meter was made, guarded (see below)    |
+| Charge mode              | Fast, off, solar surplus... (the charger's power manager, read only)      |
+| Fault reported           | Yes / no                                                                  |
+| Start charging           | Button (commands allowed only)                                            |
+| Stop charging            | Button, **always available**                                              |
+| Set the charging current | List from 6 A to the ceiling (commands allowed only)                      |
 
-1. Open the **Configuration** tab of the integration.
-2. Set the **latitude** and **longitude** the demo weather station should
-   observe (they default to Paris), and pick your temperature unit.
-   The **refresh interval** sets how often the weather station and the
-   plug's power are read: every 5 minutes by default, every minute at most.
-3. Save: the devices appear in the **Discovery** tab, ready to be added.
+Read every 30 seconds by default (10 s to 10 min, adjustable), one request at
+a time. The power, the energy, the session, the current set and the charge
+mode are secondary: when one does not answer, the other values are published
+anyway and the status of the integration says "Not read this time: ...".
 
-The **Prefer the local connection** toggle drives the demo plug: it reports
-the channel it actually uses as a badge (local or cloud), with an orange dot
-when it runs degraded (local refused, cloud fallback).
+## Installation
 
-## Actions
+1. Give the charger a fixed IP address in your router.
+2. In Gladys, install the integration, enter the IP address of the charger
+   (or its name, `warp3-xxxx.local`, optionally followed by a port).
+3. If you set users on the charger (Users page), give the name and password
+   of one of them: the integration answers the Digest challenge of the
+   charger, the password itself never travels. The password is kept by
+   Gladys in its database, never shown again, sent only to the charger.
+4. Save, then add the charger from the **Discovery** tab.
 
-- **Test the weather provider** — performs a live request to Open-Meteo and
-  shows the current temperature and humidity under the button.
-- **Identify a device** — pick one of your devices in the list and it will
-  signal itself (the demo light "blinks" in the logs).
+HTTP only: when the charger is set to HTTPS only (Network settings), the
+status of the integration says so; allow HTTP. The WARP Energy Manager is not
+a charger and is not supported.
 
-## Scenes
+## Stop charging
 
-The integration adds its own cards to the scene editor (Gladys 5.1 or
-later), under the **Integrations** category:
+The **Stop charging** button acts like the charger's own button
+(`evse/stop_charging`). It does not depend on the commands option, on a read
+or a command in progress (it ends them), on a pause after a 429 or 5xx
+error, on refused credentials, nor on the configuration: right after a
+restart it goes to the address of the last charger read (kept in `/data`),
+and a stop not seen applied before a restart is sent again as soon as the
+container starts. A command that arrived before it and has not left is
+dropped.
 
-- **Motion detected** (trigger) — starts the scene when a demo motion sensor
-  sees something move. Optionally pick the sensor and what moved (person,
-  animal); left empty, any detection matches. The following actions can
-  read what moved with `{{triggerEvent.data.target}}`.
-- **Identify a device** (action) — makes the chosen device signal itself.
-  It returns whether the device could signal itself, so the following
-  actions can depend on it.
+It succeeds when the read back shows the charge blocked (or no vehicle).
+Otherwise the answer says why, and the stop is kept (in `/data`) and checked
+every 15 s:
 
-## Dashboard
+- **no address known** (no configuration nor charger read before): nothing
+  is sent;
+- **the charger does not answer** for 3 s: tried again every 15 s;
+- **credentials refused**: tried again every 15 s, and at once when new
+  credentials are saved;
+- **not applied yet** (the charger still allows the charge): sent again 3
+  times at most, then kept without new writes until a new click; the status
+  of the integration says so;
+- **without confirmation** in time (4.3 s): checked the same way.
 
-Add the **Demo status** widget to a dashboard: it shows the live
-temperature of the weather station and the power of the office plug, the
-connection the plug currently uses (orange when degraded) and the observed
-location. Its **Identify the light** button makes the demo light signal
-itself.
+A kept stop is let go when the charger shows the charge blocked, when the
+vehicle is unplugged, or when a newer start clicked in Gladys (option on)
+left. Never by time. A start sent less than 90 s before the stop that lands
+after it is countered by a new stop.
 
-## Troubleshooting
+## Start charging and set the current (option)
 
-The integration logs everything it does: check the integration logs from the
-Gladys UI (or `docker logs` on the host) with `LOG_LEVEL=debug` for the full
-detail.
+Off by default: turn on **Allow the commands**. They are a button and a list,
+never a switch (a "turn everything off" never reaches them). Each command
+reads the charger right before (identity, state, current slots), leaves
+within 3.5 s or not at all, and succeeds only when the read back shows the
+value asked ("sent, not applied yet" otherwise, then reads at 5 and 20 s).
+
+- **Start**: refused without a vehicle, on a fault, or when the charger would
+  give a current above the ceiling (set the current first).
+- **Current**: from 6 A to the lowest of the ceiling (16 A by default, 32 A
+  at most) and the cable limits read from the charger. With external control
+  on in the charger, the integration writes its slot
+  (`evse/external_current`); otherwise the current of the web interface
+  (`evse/global_current`), kept in flash by the charger: **one increase a
+  minute** at most (its time kept in `/data`), a decrease never limited.
+
+Also refused: during a 429/5xx pause, with refused credentials, before the
+configuration is read, while another command runs, or when a stop was
+clicked meanwhile.
+
+## Energy index (guarded)
+
+The **energy index** is the charger's meter (MeterValueID 209): Gladys turns
+it into consumption and cost in its Energy tab. As Gladys counts every rise in
+full, it goes through a **guard** (the one of the P1 Monitor integration):
+
+- an index at 0 or missing is not published;
+- a plausible rise (25 kW on average at most since the last value, on the
+  session clock, which an NTP correction does not move) goes through;
+- a **jump** or a **drop** (meter reset or replaced) is **held**: nothing is
+  published, the status of the integration shows it, the hold is kept in
+  `/data`. Neither time nor repetition confirms it;
+- the **Accept the held index** button takes it in **two clicks**: the first
+  shows the value, the second (3 s to 5 min later) takes exactly that value
+  (plus what the charger may have drawn since). A drop accepted counts
+  nothing.
+
+The charger is already counted by your main meter: in the Energy settings of
+Gladys, put it **under** your main meter.
+
+## Good to know
+
+- The charger is not read sooner than the interval: not by the **Test the
+  connection** button, a Discovery, a reconnection to Gladys nor a restart
+  (the time of the last read is kept in `/data`). Only the reads that follow a
+  command (5 and 20 s) are an exception.
+- A value older than 2 minutes is not sent as new.
+- Nothing secret is written to `/data` nor to the logs.
+- The charger's OCPP, its MQTT integration or another home automation may
+  drive it too: the last write wins.
