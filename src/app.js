@@ -110,6 +110,12 @@ import {
 } from './warp/model.js';
 
 const round3 = (value) => Math.round(value * 1000) / 1000;
+/** A clear refusal of a write (401, another 4xx, a 429, a redirection): it was not applied. */
+const clearRefusal = (err) =>
+  err?.kind === ERROR_KINDS.AUTH ||
+  err?.kind === ERROR_KINDS.RATE_LIMITED ||
+  (err?.kind === ERROR_KINDS.HTTP && err.status >= 300 && err.status < 500);
+
 const sameAddress = (a, b) => Boolean(a && b) && a.host === b.host && a.port === b.port;
 
 /** The index Gladys already holds for a feature of a created device, when it says so. */
@@ -1571,7 +1577,8 @@ export class WarpApp {
       if (cap > high * 1000) {
         throw this.refusal(ERRORS.aboveCeiling(Math.floor(cap / 1000), high));
       }
-      if (button.maxMa === BUTTON_RELEASED_MA && !this.isPending(role)) {
+      // Never "already so" while a stop is kept: the start is written, and lets the stop go.
+      if (button.maxMa === BUTTON_RELEASED_MA && !this.isPending(role) && !this.stopGuard) {
         return undefined;
       }
       return {
@@ -1723,10 +1730,15 @@ export class WarpApp {
         },
       });
     } catch (err) {
+      // A start that left and was not clearly refused (a 5xx, a silence, a cut)
+      // may have been applied: the newer intent wins, the stop is let go.
+      if (role === FEATURES.START && entry.sent && !clearRefusal(err)) {
+        this.dropStopGuard('newer start, sent without confirmation');
+      }
       return this.commandFailed(err, entry, role);
     }
     if (role === FEATURES.START && this.stopGuard) {
-      // A newer start clicked with the option and accepted (2xx): the stop before it is let go.
+      // A newer start clicked with the option and accepted: the stop before it is let go.
       this.dropStopGuard('newer start');
     }
     // The read back alone confirms it.

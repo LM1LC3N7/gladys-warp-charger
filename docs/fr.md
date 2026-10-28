@@ -84,7 +84,11 @@ sur **Tester la connexion**.
 
 L'arrêt gardé est levé quand la borne montre la charge bloquée, quand le
 véhicule est débranché, ou quand un démarrage plus récent cliqué dans Gladys
-(option activée) est parti. Jamais par le temps. Un démarrage envoyé moins de
+(option activée) est parti sans refus net (un 401, un autre 4xx, un 429 ou
+une redirection le garde ; un 5xx ou une absence de réponse le lève : le
+démarrage a pu s'appliquer). Tant qu'un arrêt est gardé, Démarrer écrit
+toujours, même si la borne montre déjà la charge autorisée. Jamais par le
+temps. Un démarrage envoyé moins de
 90 s avant l'arrêt et arrivé après lui est contré par un nouvel envoi.
 
 ## Démarrer la charge et régler le courant (option)
@@ -100,7 +104,10 @@ sinon, puis relectures à 5 et 20 s).
   la borne (câbles, son courant de charge, commande externe) permettent un
   courant au-dessus du plafond : réglez d'abord le courant. Avec les réglages
   d'usine (32 A) et le plafond par défaut (16 A), le premier démarrage est
-  refusé tant que le courant n'est pas réglé. Un démarrage refusé (4xx, 401, 429) ne lève jamais un arrêt gardé.
+  refusé tant que le courant n'est pas réglé. Avec la commande externe
+  activée, le contrôleur externe (gestionnaire d'énergie, surplus solaire)
+  peut remonter son emplacement après le démarrage, au-dessus du plafond :
+  Gladys ne borne pas ce contrôleur.
 - **Courant** : de 6 A au plus bas du plafond (16 A par défaut, 32 A au plus)
   et des limites des câbles lues sur la borne. Avec la commande externe
   activée sur la borne, l'intégration écrit son emplacement

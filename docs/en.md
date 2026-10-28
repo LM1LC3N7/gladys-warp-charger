@@ -82,7 +82,10 @@ is clicked.
 
 A kept stop is let go when the charger shows the charge blocked, when the
 vehicle is unplugged, or when a newer start clicked in Gladys (option on)
-left. Never by time. A start sent less than 90 s before the stop that lands
+left and was not clearly refused (a 401, another 4xx, a 429 or a redirect
+keeps it; a 5xx or no answer lets it go: the start may have been applied).
+While a stop is kept, Start is always written, even when the charger
+already shows the charge allowed. Never by time. A start sent less than 90 s before the stop that lands
 after it is countered by a new stop.
 
 ## Start charging and set the current (option)
@@ -97,8 +100,9 @@ value asked ("sent, not applied yet" otherwise, then reads at 5 and 20 s).
   the charger (cables, its charging current, external control) allow a
   current above the ceiling: set the current first. With the factory
   settings (32 A) and the default ceiling (16 A), the first start is refused
-  until the current is set. A refused start (4xx, 401, 429) never lets a
-  kept stop go.
+  until the current is set. With external control on, the external
+  controller (an energy manager, solar surplus) may raise its own slot after
+  the start, above the ceiling: Gladys does not bound that controller.
 - **Current**: from 6 A to the lowest of the ceiling (16 A by default, 32 A
   at most) and the cable limits read from the charger. With external control
   on in the charger, the integration writes its slot

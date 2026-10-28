@@ -49,6 +49,16 @@ up to date at the end of every milestone.
 
 ## Decisions
 
+- **Review r2 (2026-10-28)**: I3, a newer start that left lets a kept stop go
+  unless clearly refused (401, other 4xx, 429, 3xx): a 5xx, a silence or a
+  cut let it go (the start may be applied); while a stop is kept, Start is
+  always written (never "already so"). m1: tests for the wait under the line
+  aborted by a stop, the re-arming on 'wait' and 'yield', a start allowed by
+  an external control under the ceiling. m2: the docs say the external
+  controller may raise slot 8 after a start. A stop never written in /data
+  reads 0 resends. Reviewer mutant "M5 start with cables unknown" left:
+  equivalent (`capFixed` is undefined then).
+
 - **Review r1 (2026-10-28)**:
   - B1: a command never waits without a bound while it holds the line: the
     save of `flashAt` runs against the send deadline and the stop (late:

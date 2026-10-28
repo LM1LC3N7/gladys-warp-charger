@@ -101,7 +101,8 @@ function normalizeStop(raw, now) {
     ...address,
     since,
     written: raw.written === true,
-    resends: intIn(raw.resends, 0, 100) ?? 0,
+    // Never written: no resend can have been counted (a stop that never left is never held).
+    resends: raw.written === true ? (intIn(raw.resends, 0, 100) ?? 0) : 0,
   };
 }
 
