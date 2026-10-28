@@ -81,12 +81,14 @@ at once when new credentials are saved or the **Test the connection** button
 is clicked.
 
 A kept stop is let go when the charger shows the charge blocked, when the
-vehicle is unplugged, or when a newer start clicked in Gladys (option on)
+vehicle is unplugged, or when a start clicked in Gladys after it (option on)
 left and was not clearly refused (a 401, another 4xx, a 429 or a redirect
 keeps it; a 5xx or no answer lets it go: the start may have been applied).
-While a stop is kept, Start is always written, even when the charger
-already shows the charge allowed. Never by time. A start sent less than 90 s before the stop that lands
-after it is countered by a new stop.
+A start still on its way when the stop is clicked never lets that stop go:
+the stop cuts it and watches for it. While a stop is kept, Start is always
+written, even when the charger already shows the charge allowed. Never by
+time. A start sent less than 90 s before the stop that lands after it is
+countered by a new stop.
 
 ## Start charging and set the current (option)
 

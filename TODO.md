@@ -49,6 +49,21 @@ up to date at the end of every milestone.
 
 ## Decisions
 
+- **Review r3 (2026-10-28)**: B3, a start lets a kept stop go only when no
+  stop was clicked after it arrived (`entry.seq === protectSeq`), on its 2xx
+  and on a failure without a clear refusal: a stop clicked while a start is
+  on the line cuts it, stays kept and counters it if it lands late. I4: tests
+  for a start that never left, a 401 and a 429 (the stop kept, sent again at
+  the check). Also: the end of a stop never awaits /data (the next check
+  armed first): a hung disk no longer stalled the stop worker, its checks
+  and every later click; the check after a stop in 'watch' at the end of the
+  watch is tested. Mutants "no watch of a late start (stop)" and "no watch
+  on a check resend" left: equivalent. `lastStartAt` moves only in the
+  `beforeSend` of a start whose `seq` is the current one (an older one is
+  refused there), so after a click only a start clicked later can move it;
+  it then lets the stop go, unless clearly refused (not applied: no start to
+  watch for). The watch set at the click covers every start before it.
+
 - **Review r2 (2026-10-28)**: I3, a newer start that left lets a kept stop go
   unless clearly refused (401, other 4xx, 429, 3xx): a 5xx, a silence or a
   cut let it go (the start may be applied); while a stop is kept, Start is

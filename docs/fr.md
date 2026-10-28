@@ -83,13 +83,14 @@ Un arrêt qui n'est jamais parti n'est jamais abandonné : réessayé toutes les
 sur **Tester la connexion**.
 
 L'arrêt gardé est levé quand la borne montre la charge bloquée, quand le
-véhicule est débranché, ou quand un démarrage plus récent cliqué dans Gladys
+véhicule est débranché, ou quand un démarrage cliqué dans Gladys après lui
 (option activée) est parti sans refus net (un 401, un autre 4xx, un 429 ou
 une redirection le garde ; un 5xx ou une absence de réponse le lève : le
-démarrage a pu s'appliquer). Tant qu'un arrêt est gardé, Démarrer écrit
-toujours, même si la borne montre déjà la charge autorisée. Jamais par le
-temps. Un démarrage envoyé moins de
-90 s avant l'arrêt et arrivé après lui est contré par un nouvel envoi.
+démarrage a pu s'appliquer). Un démarrage encore en route quand l'arrêt est
+cliqué ne lève jamais cet arrêt : l'arrêt le coupe et le surveille. Tant
+qu'un arrêt est gardé, Démarrer écrit toujours, même si la borne montre déjà
+la charge autorisée. Jamais par le temps. Un démarrage envoyé moins de 90 s
+avant l'arrêt et arrivé après lui est contré par un nouvel envoi.
 
 ## Démarrer la charge et régler le courant (option)
 

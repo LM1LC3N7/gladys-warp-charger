@@ -1733,12 +1733,17 @@ export class WarpApp {
       // A start that left and was not clearly refused (a 5xx, a silence, a cut)
       // may have been applied: the newer intent wins, the stop is let go.
       if (role === FEATURES.START && entry.sent && !clearRefusal(err)) {
-        this.dropStopGuard('newer start, sent without confirmation');
+        // Never a stop clicked after this start arrived: that stop is the newer
+        // intent (the cut is its own abort of the line), watched for this start.
+        if (entry.seq === this.protectSeq) {
+          this.dropStopGuard('newer start, sent without confirmation');
+        }
       }
       return this.commandFailed(err, entry, role);
     }
-    if (role === FEATURES.START && this.stopGuard) {
-      // A newer start clicked with the option and accepted: the stop before it is let go.
+    if (role === FEATURES.START && this.stopGuard && entry.seq === this.protectSeq) {
+      // A newer start clicked with the option and accepted: the stop before it
+      // is let go, never one clicked while this start was on its way.
       this.dropStopGuard('newer start');
     }
     // The read back alone confirms it.
@@ -2087,12 +2092,11 @@ export class WarpApp {
     if (this.stopGuard === guard) {
       if (decision === 'done') {
         this.dropStopGuard('applied');
-      } else if (decision === 'watch') {
-        await this.persistStop();
-        this.armStopCheck(this.watchDelay(guard));
       } else {
-        await this.persistStop();
-        this.armStopCheck();
+        // Armed before /data is written, never awaited: a hung disk never stops
+        // the checks nor holds the next click behind this one.
+        this.armStopCheck(decision === 'watch' ? this.watchDelay(guard) : undefined);
+        this.persistStop().catch(() => {});
       }
     }
     if (state.written) {

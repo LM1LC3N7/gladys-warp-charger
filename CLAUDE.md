@@ -76,8 +76,10 @@ test/kit/                         gladys-testkit files, as is (clocks, loopback 
   holds the line; a command that arrived before it and has not left gives
   way; kept in `/data` before its first byte (200 ms at most, a failing disk
   never holds it); checked every 15 s, sent again 3 times at most; let go
-  only when applied (button slot 0), no vehicle, or a newer start left; a
-  start sent less than 90 s before it is watched for. Never ended by time.
+  only when applied (button slot 0), no vehicle, or a start clicked after
+  it left (never one on its way at the click: the stop cuts it and watches
+  for it); a start sent less than 90 s before it is watched for. Never ended
+  by time.
 - **Commands** (start, current): never a switch or a writable binary;
   refused unless `allow_commands`, checked on arrival and in `beforeSend`;
   decided on a fresh read (identity included); bounded 6 A to min(ceiling,
