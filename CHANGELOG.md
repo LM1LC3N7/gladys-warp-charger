@@ -10,6 +10,8 @@ the notes of the version's GitHub Release.
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-10-28
+
 ### Added
 
 - Tinkerforge WARP chargers (WARP1 to WARP4, firmware 2.x) read over their
@@ -30,3 +32,6 @@ the notes of the version's GitHub Release.
   default, and the cable limits) behind "Allow the commands" (off by
   default), decided on a fresh read, confirmed by a read back; one increase
   of the flash-kept current a minute.
+
+[Unreleased]: https://github.com/LM1LC3N7/gladys-warp-charger/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/LM1LC3N7/gladys-warp-charger/releases/tag/v0.1.1

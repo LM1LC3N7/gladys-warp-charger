@@ -1,6 +1,6 @@
 {
   "name": "gladys-warp-charger",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "description": "Gladys Assistant external integration for Tinkerforge WARP chargers (WARP1 to WARP4, firmware 2.x) over their local HTTP API: state, vehicle, power, current allowed, session energy, energy index with a plausibility guard, charge mode; optional start and charging current, bounded and off by default, stop never held back. Unofficial, not affiliated with Tinkerforge.",
   "type": "module",
